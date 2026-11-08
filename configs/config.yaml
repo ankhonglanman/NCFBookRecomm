@@ -1,0 +1,73 @@
+# ==============================================================================
+# Project: Book-NCF (Neural Collaborative Filtering for Book Recommendation)
+# Description: Configuration for data processing, model architectures, and training
+# ==============================================================================
+
+# Data Paths & Preprocessing Parameters
+data:
+  raw_dir: "data/raw"
+  ratings_path: "data/raw/ratings.csv"
+  books_path: "data/raw/books.csv"
+  processed_dir: "data/processed"
+  train_path: "data/processed/train.csv"
+  test_negatives_path: "data/processed/test_negatives.csv"
+  mappings_path: "data/processed/id_mappings.pkl"
+  
+  # Column names in raw CSV
+  user_col: "user_id"
+  item_col: "book_id"
+  rating_col: "rating"
+  timestamp_col: "timestamp"  # Optional; if not found, randomized split is used
+  
+  # Preprocessing threshold
+  min_rating_threshold: 1.0   # Implicit feedback binarization: rating >= threshold -> 1
+  min_user_ratings: 5         # K-core filtering for users
+  min_item_ratings: 5         # K-core filtering for books
+  
+  # Negative Sampling
+  num_negatives_train: 4      # Dynamic negative samples per positive interaction in training
+  num_negatives_test: 99      # Negatives paired with 1 positive for Leave-One-Out evaluation
+
+# Model Architecture Parameters
+model:
+  model_type: "neumf"         # Options: "gmf", "mlp", "neumf"
+  
+  # GMF branch parameters
+  latent_dim_gmf: 32
+  
+  # MLP branch parameters
+  latent_dim_mlp: 32
+  mlp_hidden_dims: [64, 32, 16]
+  dropout: 0.2
+  
+  # Pretraining paths (for NeuMF initialization)
+  pretrained_gmf_path: null   # e.g., "checkpoints/gmf_best.pt"
+  pretrained_mlp_path: null   # e.g., "checkpoints/mlp_best.pt"
+
+# Training & Optimization Parameters
+train:
+  seed: 42
+  batch_size: 256
+  num_epochs: 20
+  learning_rate: 0.001
+  weight_decay: 0.00001
+  optimizer: "adam"           # Options: "adam", "sgd", "adamw"
+  
+  # Early Stopping & Checkpoints
+  early_stopping_patience: 5
+  monitor_metric: "ndcg@10"   # Metric to track for best checkpoint (e.g. hr@10, ndcg@10)
+  save_dir: "checkpoints"
+  checkpoint_name: "best_model.pt"
+  device: "cuda"              # Options: "cuda", "cpu" (auto-fallback if cuda unavailable)
+
+# Evaluation Settings
+evaluation:
+  top_k: [5, 10, 20]
+  eval_batch_size: 100
+
+# Logging & Monitoring
+logging:
+  log_dir: "logs"
+  log_file: "experiment.log"
+  history_file: "training_history.json"
+  log_interval: 100           # Steps between progress log
