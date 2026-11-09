@@ -33,16 +33,27 @@ checkpoints/
 *.bin
 *.onnx
 
-# Data files (keep directory structure via .gitkeep)
+# Data files (keep directory structure via .gitkeep only)
 data/raw/*
 !data/raw/.gitkeep
 data/processed/*
 !data/processed/.gitkeep
+data/*
+!data/raw/
+!data/processed/
 *.csv
 *.tsv
 *.parquet
 *.pkl
 *.pickle
+*.h5
+*.hdf5
+*.zip
+*.tar
+*.gz
+*.tar.gz
+*.rar
+*.7z
 
 # Logs and experiment tracking
 logs/
