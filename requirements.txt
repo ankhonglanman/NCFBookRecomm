@@ -12,9 +12,8 @@ pyyaml>=6.0
 tqdm>=4.65.0
 kagglehub>=1.0.3
 
-# Visualization & Notebook
+# Visualization
 matplotlib>=3.7.0
 seaborn>=0.12.0
-ipykernel>=6.20.0
-notebook>=7.0.0
+
 
