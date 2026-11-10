@@ -5,9 +5,9 @@
 
 # Data Paths & Preprocessing Parameters
 data:
-  raw_dir: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5"
-  ratings_path: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5/ratings.csv"
-  books_path: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5/books.csv"
+  raw_dir: "data/raw"
+  ratings_path: "data/raw/ratings.csv"
+  books_path: "data/raw/books.csv"
   processed_dir: "data/processed"
   train_path: "data/processed/train.csv"
   val_negatives_path: "data/processed/val_negatives.csv"

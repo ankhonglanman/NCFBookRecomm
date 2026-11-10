@@ -33,18 +33,15 @@ checkpoints/
 *.bin
 *.onnx
 
-# Data files (keep directory structure via .gitkeep only)
-data/raw/*
-!data/raw/.gitkeep
-data/processed/*
-!data/processed/.gitkeep
-data/*
+# Data files - Tracked for team collaboration
 !data/raw/
+!data/raw/*
 !data/processed/
-*.csv
+!data/processed/*
+
+# Heavy binary data formats & archives
 *.tsv
 *.parquet
-*.pkl
 *.pickle
 *.h5
 *.hdf5
