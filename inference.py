@@ -140,7 +140,11 @@ def main():
         try:
             books_meta = pd.read_csv(books_path)
             book_col = data_cfg.get("item_col", "book_id")
-            if book_col in books_meta.columns:
+            meta_id_col = data_cfg.get("book_meta_id_col", "id" if "id" in books_meta.columns else book_col)
+            if meta_id_col in books_meta.columns:
+                books_meta[meta_id_col] = books_meta[meta_id_col].astype(str)
+                books_meta = books_meta.set_index(meta_id_col)
+            elif book_col in books_meta.columns:
                 books_meta[book_col] = books_meta[book_col].astype(str)
                 books_meta = books_meta.set_index(book_col)
         except Exception as e:

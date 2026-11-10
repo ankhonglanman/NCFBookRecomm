@@ -10,6 +10,7 @@ import pickle
 import random
 import argparse
 import yaml
+from tqdm import tqdm
 import numpy as np
 import pandas as pd
 from typing import Dict, Any, Tuple, Set
@@ -147,25 +148,27 @@ class DataPreprocessor:
         print(f"Sampling {self.num_negatives_test} test negative items per user...")
         # Map user to all interacted items
         user_interacted = full_df.groupby("user_idx")["item_idx"].apply(set).to_dict()
-        all_item_set = set(range(num_items))
 
         records = []
         random.seed(self.seed)
 
-        for _, row in test_df.iterrows():
-            u = int(row["user_idx"])
-            pos_item = int(row["item_idx"])
-            
+        # Vectorized tuple iteration with progress bar
+        u_indices = test_df["user_idx"].values
+        pos_indices = test_df["item_idx"].values
+
+        for idx in tqdm(range(len(test_df)), desc="Generating test negatives"):
+            u = int(u_indices[idx])
+            pos_item = int(pos_indices[idx])
             interacted = user_interacted.get(u, set())
-            neg_candidates = list(all_item_set - interacted)
-            
-            if len(neg_candidates) < self.num_negatives_test:
-                # If negative pool is smaller than required, sample with replacement
-                negatives = random.choices(neg_candidates, k=self.num_negatives_test)
-            else:
-                negatives = random.sample(neg_candidates, k=self.num_negatives_test)
-                
-            records.append([u, pos_item] + negatives)
+
+            # Fast rejection sampling (num_items is typically much larger than num_negatives)
+            neg_set = set()
+            while len(neg_set) < self.num_negatives_test:
+                rand_item = random.randint(0, num_items - 1)
+                if rand_item not in interacted:
+                    neg_set.add(rand_item)
+
+            records.append([u, pos_item] + list(neg_set))
 
         col_names = ["user_idx", "positive_item_idx"] + [f"neg_{i}" for i in range(self.num_negatives_test)]
         return pd.DataFrame(records, columns=col_names)

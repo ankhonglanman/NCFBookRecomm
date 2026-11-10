@@ -5,9 +5,9 @@
 
 # Data Paths & Preprocessing Parameters
 data:
-  raw_dir: "data/raw"
-  ratings_path: "data/raw/ratings.csv"
-  books_path: "data/raw/books.csv"
+  raw_dir: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5"
+  ratings_path: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5/ratings.csv"
+  books_path: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5/books.csv"
   processed_dir: "data/processed"
   train_path: "data/processed/train.csv"
   test_negatives_path: "data/processed/test_negatives.csv"
@@ -16,6 +16,7 @@ data:
   # Column names in raw CSV
   user_col: "user_id"
   item_col: "book_id"
+  book_meta_id_col: "id"      # Column in books.csv matching ratings book_id (goodbooks-10k uses 'id')
   rating_col: "rating"
   timestamp_col: "timestamp"  # Optional; if not found, randomized split is used
   
