@@ -108,24 +108,27 @@ class Trainer:
         # 1. Dynamic Negative Sampling
         self.dataset.sample_negatives()
 
-        # 2. Re-create DataLoader for newly sampled dataset
+        # 2. Re-create DataLoader for newly sampled dataset with multi-worker prefetching
+        num_workers = min(2, os.cpu_count() or 1)
         train_loader = DataLoader(
             self.dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=0,
-            pin_memory=(self.device.type == "cuda")
+            num_workers=num_workers,
+            pin_memory=(self.device.type == "cuda"),
+            persistent_workers=(num_workers > 0)
         )
 
         self.model.train()
         total_loss = 0.0
         num_batches = len(train_loader)
+        update_interval = max(1, num_batches // 50)
 
         pbar = tqdm(train_loader, desc=f"Epoch {epoch:02d}/{self.num_epochs:02d}", leave=False)
-        for users, items, labels in pbar:
-            users = users.to(self.device)
-            items = items.to(self.device)
-            labels = labels.to(self.device)
+        for step, (users, items, labels) in enumerate(pbar):
+            users = users.to(self.device, non_blocking=True)
+            items = items.to(self.device, non_blocking=True)
+            labels = labels.to(self.device, non_blocking=True)
 
             self.optimizer.zero_grad()
             predictions = self.model(users, items)
@@ -134,8 +137,10 @@ class Trainer:
             loss.backward()
             self.optimizer.step()
 
-            total_loss += loss.item()
-            pbar.set_postfix({"batch_loss": f"{loss.item():.4f}"})
+            loss_val = loss.item()
+            total_loss += loss_val
+            if step % update_interval == 0:
+                pbar.set_postfix({"batch_loss": f"{loss_val:.4f}"})
 
         return total_loss / max(num_batches, 1)
 

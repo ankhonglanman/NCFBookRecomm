@@ -69,36 +69,50 @@ class NCFDataset(Dataset):
 
         num_pos = len(self.train_users)
 
-        for idx in range(num_pos):
-            u = int(self.train_users[idx])
-            i = int(self.train_items[idx])
+    def sample_negatives(self) -> None:
+        """
+        Fast vectorized dynamic negative sampling.
+        Generates dynamic negative samples for the upcoming training epoch using NumPy.
+        """
+        num_pos = len(self.train_users)
+        total_samples = num_pos * (1 + self.num_negatives)
 
-            # Positive sample
-            users_list.append(u)
-            items_list.append(i)
-            labels_list.append(1.0)
+        users = np.empty(total_samples, dtype=np.int64)
+        items = np.empty(total_samples, dtype=np.int64)
+        labels = np.zeros(total_samples, dtype=np.float32)
 
-            # Negative samples
-            pos_set = self.user_pos_items[u]
-            for _ in range(self.num_negatives):
-                neg_item = random.randint(0, self.num_items - 1)
-                while neg_item in pos_set:
-                    neg_item = random.randint(0, self.num_items - 1)
-                
-                users_list.append(u)
-                items_list.append(neg_item)
-                labels_list.append(0.0)
+        # 1. Fill positive samples
+        users[:num_pos] = self.train_users
+        items[:num_pos] = self.train_items
+        labels[:num_pos] = 1.0
 
-        self.users = np.array(users_list, dtype=np.int64)
-        self.items = np.array(items_list, dtype=np.int64)
-        self.labels = np.array(labels_list, dtype=np.float32)
+        # 2. Vectorized negative sampling for all (u, neg) pairs
+        users_neg = np.repeat(self.train_users, self.num_negatives)
+        rand_items = np.random.randint(0, self.num_items, size=num_pos * self.num_negatives, dtype=np.int64)
+
+        # Fast collision rejection: only adjust the ~1% colliding items
+        for idx in range(len(users_neg)):
+            u = int(users_neg[idx])
+            neg = int(rand_items[idx])
+            if neg in self.user_pos_items[u]:
+                while neg in self.user_pos_items[u]:
+                    neg = random.randint(0, self.num_items - 1)
+                rand_items[idx] = neg
+
+        users[num_pos:] = users_neg
+        items[num_pos:] = rand_items
+
+        # Convert once to contiguous PyTorch tensors for zero-copy DataLoader slicing
+        self.users_tensor = torch.from_numpy(users)
+        self.items_tensor = torch.from_numpy(items)
+        self.labels_tensor = torch.from_numpy(labels)
 
     def __len__(self) -> int:
-        return len(self.labels)
+        return len(self.labels_tensor)
 
     def __getitem__(self, idx: int) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return (
-            torch.tensor(self.users[idx], dtype=torch.long),
-            torch.tensor(self.items[idx], dtype=torch.long),
-            torch.tensor(self.labels[idx], dtype=torch.float32)
+            self.users_tensor[idx],
+            self.items_tensor[idx],
+            self.labels_tensor[idx]
         )
