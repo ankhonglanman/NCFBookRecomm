@@ -17,8 +17,11 @@ An end-to-end research and production-grade implementation of personalized book 
 - **Robust Recommendation Preprocessing**:
   - Iterative K-core filtering for users and items to eliminate extreme sparsity.
   - Implicit feedback binarization for ranking tasks.
-  - Rigorous **Leave-One-Out (LOO)** protocol: the latest interaction per user is held out for testing.
-  - Unbiased ranking evaluation candidate set: **1 Positive Item + 99 Negative Items** per test user.
+  - Rigorous **3-Way Leave-One-Out (LOO)** protocol:
+    - Interaction $T$ (latest): Held out strictly for final unbiased **Test Evaluation**.
+    - Interaction $T-1$ (second-to-latest): Held out for **Validation & Early Stopping**.
+    - Interactions $1 \dots T-2$: Used for model **Training**.
+  - Candidate ranking evaluation sets: **1 Positive Item + 99 Negative Items** per validation/test user.
 - **Dynamic Negative Sampling**: Resamples unobserved items on every training epoch to avoid static sample bias and enhance generalization.
 - **Standard Ranking Metrics**:
   - **HR@K** (Hit Ratio at Rank K).
@@ -35,7 +38,7 @@ book-ncf/
 │   └── config.yaml          # Centralized hyperparameters & paths configuration
 ├── data/
 │   ├── raw/                 # Raw dataset files (ratings.csv, books.csv)
-│   └── processed/           # Processed files (train.csv, test_negatives.csv, id_mappings.pkl)
+│   └── processed/           # Processed files (train.csv, val_negatives.csv, test_negatives.csv, id_mappings.pkl)
 ├── notebooks/
 │   ├── eda.ipynb            # Exploratory Data Analysis (long-tail distribution, sparsity)
 │   └── colab_runner.ipynb   # Execution notebook for Google Colab (Drive mount, CLI commands)

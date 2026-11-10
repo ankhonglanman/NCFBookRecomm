@@ -75,6 +75,17 @@ class MetricTracker:
         self.history.append(record)
         self.save()
 
+    def log_test(self, test_metrics: Dict[str, float]) -> None:
+        """
+        Record final unbiased test metrics evaluated on the best model.
+        """
+        record = {
+            "evaluation_stage": "final_test",
+            **test_metrics
+        }
+        self.history.append(record)
+        self.save()
+
     def save(self) -> None:
         """
         Saves current history into JSON format.

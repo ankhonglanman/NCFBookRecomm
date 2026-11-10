@@ -10,6 +10,7 @@ data:
   books_path: "/home/an-vu/.cache/kagglehub/datasets/zygmunt/goodbooks-10k/versions/5/books.csv"
   processed_dir: "data/processed"
   train_path: "data/processed/train.csv"
+  val_negatives_path: "data/processed/val_negatives.csv"
   test_negatives_path: "data/processed/test_negatives.csv"
   mappings_path: "data/processed/id_mappings.pkl"
   

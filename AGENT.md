@@ -23,7 +23,7 @@ This document serves as the primary technical reference and operating manual for
 │   └── config.yaml          # Single source of truth for all hyperparameters & paths
 ├── data/
 │   ├── raw/                 # Raw datasets (ratings.csv, books.csv) - Untracked by git
-│   └── processed/           # Processed datasets (train.csv, test_negatives.csv, id_mappings.pkl)
+│   └── processed/           # Processed datasets (train.csv, val_negatives.csv, test_negatives.csv, id_mappings.pkl)
 ├── notebooks/
 │   ├── eda.ipynb            # Exploratory data analysis (sparsity, long-tail distributions)
 │   └── colab_runner.ipynb   # Complete execution flow for Google Colab environments
@@ -64,8 +64,9 @@ This document serves as the primary technical reference and operating manual for
   - `idx2item`: inverse mapping.
   - `num_users`: total distinct users after K-core filtering.
   - `num_items`: total distinct items after K-core filtering.
-- `train.csv`: Training set containing `user_idx`, `item_idx`, and implicit interaction `1`.
-- `test_negatives.csv`: Evaluation set containing `user_idx`, `positive_item_idx`, and 99 negative items (`neg_0` to `neg_98`).
+- `train.csv`: Training set containing `user_idx`, `item_idx`, and implicit interaction `1` (interactions $1 \dots T-2$).
+- `val_negatives.csv`: Validation set containing `user_idx`, positive item ($T-1$), and 99 negative items (`neg_0` to `neg_98`) used for early stopping and hyperparameter tuning.
+- `test_negatives.csv`: Evaluation set containing `user_idx`, positive item ($T$), and 99 negative items (`neg_0` to `neg_98`) used strictly for final unbiased reporting.
 
 ---
 

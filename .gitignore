@@ -52,6 +52,8 @@ data/*
 *.tar
 *.gz
 *.tar.gz
+*.bz2
+*.tar.bz2
 *.rar
 *.7z
 

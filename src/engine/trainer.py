@@ -31,14 +31,16 @@ class Trainer:
         self,
         model: nn.Module,
         dataset: NCFDataset,
-        evaluator: Evaluator,
+        val_evaluator: Evaluator,
         config: Dict[str, Any],
         logger: Any,
+        test_evaluator: Optional[Evaluator] = None,
         metric_tracker: Optional[MetricTracker] = None
     ):
         self.model = model
         self.dataset = dataset
-        self.evaluator = evaluator
+        self.val_evaluator = val_evaluator
+        self.test_evaluator = test_evaluator
         self.config = config
         self.logger = logger
         self.metric_tracker = metric_tracker
@@ -49,7 +51,8 @@ class Trainer:
         self.lr = self.train_cfg.get("learning_rate", 0.001)
         self.weight_decay = self.train_cfg.get("weight_decay", 1e-5)
         self.patience = self.train_cfg.get("early_stopping_patience", 5)
-        self.monitor_metric = self.train_cfg.get("monitor_metric", "ndcg@10")
+        raw_monitor = self.train_cfg.get("monitor_metric", "ndcg@10")
+        self.monitor_metric = raw_monitor.replace("val_", "")
         self.save_dir = self.train_cfg.get("save_dir", "checkpoints")
         self.checkpoint_name = self.train_cfg.get("checkpoint_name", "best_model.pt")
 
@@ -125,17 +128,17 @@ class Trainer:
             epoch_start = time.time()
             train_loss = self.train_epoch(epoch)
             
-            # Evaluate on test set
-            eval_metrics = self.evaluator.evaluate(self.model)
+            # Evaluate on validation set
+            val_metrics = self.val_evaluator.evaluate(self.model)
             elapsed = time.time() - epoch_start
 
-            metric_str = " | ".join([f"{k.upper()}: {v:.4f}" for k, v in eval_metrics.items()])
-            self.logger.info(f"Epoch {epoch:02d}/{self.num_epochs:02d} [{elapsed:.1f}s] - Loss: {train_loss:.4f} | {metric_str}")
+            metric_str = " | ".join([f"{k.upper()}: {v:.4f}" for k, v in val_metrics.items()])
+            self.logger.info(f"Epoch {epoch:02d}/{self.num_epochs:02d} [{elapsed:.1f}s] - Loss: {train_loss:.4f} | Val {metric_str}")
 
             if self.metric_tracker:
-                self.metric_tracker.log_epoch(epoch, train_loss, eval_metrics)
+                self.metric_tracker.log_epoch(epoch, train_loss, val_metrics)
 
-            current_score = eval_metrics.get(self.monitor_metric, 0.0)
+            current_score = val_metrics.get(self.monitor_metric, 0.0)
 
             # Check if this is the best epoch
             if current_score > best_metric_val:
@@ -148,10 +151,10 @@ class Trainer:
                     "epoch": epoch,
                     "model_state_dict": self.model.state_dict(),
                     "optimizer_state_dict": self.optimizer.state_dict(),
-                    "metrics": eval_metrics,
+                    "val_metrics": val_metrics,
                     "config": self.config
                 }, best_checkpoint_path)
-                self.logger.info(f"--> Saved best checkpoint ({self.monitor_metric}={best_metric_val:.4f}) to {best_checkpoint_path}")
+                self.logger.info(f"--> Saved best checkpoint (Val {self.monitor_metric}={best_metric_val:.4f}) to {best_checkpoint_path}")
             else:
                 patience_counter += 1
                 if patience_counter >= self.patience:
@@ -166,10 +169,27 @@ class Trainer:
         }, last_checkpoint_path)
 
         total_time = time.time() - start_time
-        self.logger.info(f"Training completed in {total_time / 60:.2f} mins. Best {self.monitor_metric}: {best_metric_val:.4f} at epoch {best_epoch}.")
+        self.logger.info(f"Training completed in {total_time / 60:.2f} mins. Best Val {self.monitor_metric}: {best_metric_val:.4f} at epoch {best_epoch}.")
+
+        # Final Evaluation on Held-out Test Set
+        final_test_metrics = {}
+        if self.test_evaluator is not None and os.path.exists(best_checkpoint_path):
+            self.logger.info("=" * 80)
+            self.logger.info(f"RUNNING FINAL UNBIASED TEST EVALUATION (Using Best Checkpoint from Epoch {best_epoch})...")
+            best_ckpt = torch.load(best_checkpoint_path, map_location=self.device)
+            self.model.load_state_dict(best_ckpt["model_state_dict"])
+            
+            final_test_metrics = self.test_evaluator.evaluate(self.model)
+            test_metric_str = " | ".join([f"{k.upper()}: {v:.4f}" for k, v in final_test_metrics.items()])
+            self.logger.info(f"FINAL TEST SET METRICS: {test_metric_str}")
+            self.logger.info("=" * 80)
+
+            if self.metric_tracker:
+                self.metric_tracker.log_test(final_test_metrics)
 
         return {
             "best_epoch": best_epoch,
-            "best_metric_value": best_metric_val,
+            "best_val_metric": best_metric_val,
+            "final_test_metrics": final_test_metrics,
             "best_checkpoint": best_checkpoint_path
         }

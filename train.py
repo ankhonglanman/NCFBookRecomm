@@ -124,10 +124,11 @@ def main():
     # Data check
     data_cfg = config.get("data", {})
     train_path = data_cfg.get("train_path", "data/processed/train.csv")
+    val_neg_path = data_cfg.get("val_negatives_path", "data/processed/val_negatives.csv")
     test_neg_path = data_cfg.get("test_negatives_path", "data/processed/test_negatives.csv")
     mappings_path = data_cfg.get("mappings_path", "data/processed/id_mappings.pkl")
 
-    if not os.path.exists(train_path) or not os.path.exists(test_neg_path) or not os.path.exists(mappings_path):
+    if not os.path.exists(train_path) or not os.path.exists(mappings_path) or not os.path.exists(test_neg_path):
         logger.warning("Processed files not found. Attempting automatic preprocessing...")
         preprocessor = DataPreprocessor(config)
         preprocessor.run()
@@ -153,12 +154,24 @@ def main():
 
     eval_cfg = config.get("evaluation", {})
     target_device = "cuda" if torch.cuda.is_available() and config["train"].get("device") == "cuda" else "cpu"
-    evaluator = Evaluator(
-        test_negatives_path=test_neg_path,
+    
+    # 3-Way Split Evaluators: Validation & Test
+    eval_val_path = val_neg_path if os.path.exists(val_neg_path) else test_neg_path
+    val_evaluator = Evaluator(
+        test_negatives_path=eval_val_path,
         top_k_list=eval_cfg.get("top_k", [5, 10, 20]),
         batch_size=eval_cfg.get("eval_batch_size", 100),
         device=target_device
     )
+
+    test_evaluator = None
+    if os.path.exists(val_neg_path) and os.path.exists(test_neg_path):
+        test_evaluator = Evaluator(
+            test_negatives_path=test_neg_path,
+            top_k_list=eval_cfg.get("top_k", [5, 10, 20]),
+            batch_size=eval_cfg.get("eval_batch_size", 100),
+            device=target_device
+        )
 
     # Initialize model
     model_type = config.get("model", {}).get("model_type", "neumf")
@@ -168,9 +181,10 @@ def main():
     trainer = Trainer(
         model=model,
         dataset=dataset,
-        evaluator=evaluator,
+        val_evaluator=val_evaluator,
         config=config,
         logger=logger,
+        test_evaluator=test_evaluator,
         metric_tracker=metric_tracker
     )
 

@@ -33,6 +33,7 @@ class DataPreprocessor:
         self.ratings_path = self.data_cfg.get("ratings_path", "data/raw/ratings.csv")
         self.processed_dir = self.data_cfg.get("processed_dir", "data/processed")
         self.train_path = self.data_cfg.get("train_path", os.path.join(self.processed_dir, "train.csv"))
+        self.val_negatives_path = self.data_cfg.get("val_negatives_path", os.path.join(self.processed_dir, "val_negatives.csv"))
         self.test_negatives_path = self.data_cfg.get("test_negatives_path", os.path.join(self.processed_dir, "test_negatives.csv"))
         self.mappings_path = self.data_cfg.get("mappings_path", os.path.join(self.processed_dir, "id_mappings.pkl"))
         
@@ -115,53 +116,58 @@ class DataPreprocessor:
         }
         return df, mappings
 
-    def leave_one_out_split(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def leave_one_out_split(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
         """
-        Splits data using Leave-One-Out protocol:
-        - The latest interaction per user (or last row) is held out as test item.
-        - All prior interactions form the training set.
+        Splits data using rigorous 3-Way Leave-One-Out protocol:
+        - The latest interaction per user (T) is held out as the Test item.
+        - The second-to-latest interaction per user (T-1) is held out as the Validation item.
+        - All prior interactions (1 .. T-2) form the Training set.
         """
         # Sort by timestamp if column exists
         if self.timestamp_col in df.columns:
             df = df.sort_values(by=[self.user_col, self.timestamp_col])
         else:
-            # Deterministic shuffle per user to pick a test item
+            # Deterministic shuffle per user to pick hold-out items
             df = df.sample(frac=1.0, random_state=self.seed)
 
-        # For each user, last record is test, rest are train
+        # 1. Test set: latest interaction per user
         test_df = df.groupby("user_idx").tail(1).copy()
-        train_df = df.drop(test_df.index).copy()
+        remaining_df = df.drop(test_df.index).copy()
 
-        print(f"Leave-One-Out split: {len(train_df):,} train samples, {len(test_df):,} test users.")
-        return train_df.reset_index(drop=True), test_df.reset_index(drop=True)
+        # 2. Validation set: second-to-latest interaction per user
+        val_df = remaining_df.groupby("user_idx").tail(1).copy()
+        train_df = remaining_df.drop(val_df.index).copy()
 
-    def generate_test_negatives(
+        print(f"3-Way Leave-One-Out split: {len(train_df):,} train samples, "
+              f"{len(val_df):,} val users, {len(test_df):,} test users.")
+        return train_df.reset_index(drop=True), val_df.reset_index(drop=True), test_df.reset_index(drop=True)
+
+    def generate_eval_negatives(
         self,
         full_df: pd.DataFrame,
-        test_df: pd.DataFrame,
-        num_items: int
+        eval_df: pd.DataFrame,
+        num_items: int,
+        desc: str = "Generating eval negatives"
     ) -> pd.DataFrame:
         """
-        For each test user, sample `num_negatives_test` unobserved items to form the 100-item candidate list.
+        For each user in eval_df (val or test), sample `num_negatives_test` unobserved items to form 100-item candidate list.
         Returns a DataFrame with columns: ['user_idx', 'positive_item_idx', 'neg_0', 'neg_1', ..., 'neg_N-1']
         """
-        print(f"Sampling {self.num_negatives_test} test negative items per user...")
-        # Map user to all interacted items
+        # Map user to all interacted items across the entire dataset (train + val + test)
         user_interacted = full_df.groupby("user_idx")["item_idx"].apply(set).to_dict()
 
         records = []
         random.seed(self.seed)
 
-        # Vectorized tuple iteration with progress bar
-        u_indices = test_df["user_idx"].values
-        pos_indices = test_df["item_idx"].values
+        u_indices = eval_df["user_idx"].values
+        pos_indices = eval_df["item_idx"].values
 
-        for idx in tqdm(range(len(test_df)), desc="Generating test negatives"):
+        for idx in tqdm(range(len(eval_df)), desc=desc):
             u = int(u_indices[idx])
             pos_item = int(pos_indices[idx])
             interacted = user_interacted.get(u, set())
 
-            # Fast rejection sampling (num_items is typically much larger than num_negatives)
+            # Fast rejection sampling (num_items is much larger than num_negatives)
             neg_set = set()
             while len(neg_set) < self.num_negatives_test:
                 rand_item = random.randint(0, num_items - 1)
@@ -181,8 +187,9 @@ class DataPreprocessor:
         df = self.filter_k_core(df)
         df, mappings = self.create_mappings(df)
 
-        train_df, test_df = self.leave_one_out_split(df)
-        test_neg_df = self.generate_test_negatives(df, test_df, mappings["num_items"])
+        train_df, val_df, test_df = self.leave_one_out_split(df)
+        val_neg_df = self.generate_eval_negatives(df, val_df, mappings["num_items"], desc="Generating val negatives")
+        test_neg_df = self.generate_eval_negatives(df, test_df, mappings["num_items"], desc="Generating test negatives")
 
         # Save artifacts
         train_export = train_df[["user_idx", "item_idx"]].copy()
@@ -190,13 +197,16 @@ class DataPreprocessor:
         train_export.to_csv(self.train_path, index=False)
         print(f"Saved training data to: {self.train_path}")
 
+        val_neg_df.to_csv(self.val_negatives_path, index=False)
+        print(f"Saved validation negative evaluation dataset to: {self.val_negatives_path}")
+
         test_neg_df.to_csv(self.test_negatives_path, index=False)
         print(f"Saved test negative evaluation dataset to: {self.test_negatives_path}")
 
         with open(self.mappings_path, "wb") as f:
             pickle.dump(mappings, f)
         print(f"Saved mappings to: {self.mappings_path}")
-        print("Preprocessing successfully completed!")
+        print("Preprocessing successfully completed with 3-Way Train/Val/Test Split!")
 
 
 if __name__ == "__main__":
