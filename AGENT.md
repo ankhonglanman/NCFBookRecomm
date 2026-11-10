@@ -110,6 +110,9 @@ python train.py --config configs/config.yaml --model neumf \
     --pretrained_gmf checkpoints/gmf_best.pt \
     --pretrained_mlp checkpoints/mlp_best.pt
 
+# Resume / Fine-tune from an existing checkpoint
+python train.py --resume checkpoints/best_model.pt --epochs 10 --lr 0.0002
+
 # Run Top-K Inference for User ID 123
 python inference.py --user_id 123 --top_k 10 --checkpoint checkpoints/best_model.pt
 ```

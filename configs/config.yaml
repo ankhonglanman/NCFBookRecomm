@@ -60,6 +60,7 @@ train:
   monitor_metric: "ndcg@10"   # Metric to track for best checkpoint (e.g. hr@10, ndcg@10)
   save_dir: "checkpoints"
   checkpoint_name: "best_model.pt"
+  resume_checkpoint: null     # Path to .pt checkpoint to resume/fine-tune from
   device: "cuda"              # Options: "cuda", "cpu" (auto-fallback if cuda unavailable)
 
 # Evaluation Settings

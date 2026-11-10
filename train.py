@@ -34,6 +34,7 @@ def parse_args():
     parser.add_argument("--device", type=str, choices=["cuda", "cpu"], default=None, help="Target device")
     parser.add_argument("--pretrained_gmf", type=str, default=None, help="Pretrained GMF weights for NeuMF")
     parser.add_argument("--pretrained_mlp", type=str, default=None, help="Pretrained MLP weights for NeuMF")
+    parser.add_argument("--resume", type=str, default=None, help="Path to checkpoint (.pt) to resume training from")
     return parser.parse_args()
 
 
@@ -177,6 +178,8 @@ def main():
     model_type = config.get("model", {}).get("model_type", "neumf")
     model = build_model(model_type, num_users, num_items, config)
 
+    resume_path = args.resume or config.get("train", {}).get("resume_checkpoint")
+
     # Trainer
     trainer = Trainer(
         model=model,
@@ -185,7 +188,8 @@ def main():
         config=config,
         logger=logger,
         test_evaluator=test_evaluator,
-        metric_tracker=metric_tracker
+        metric_tracker=metric_tracker,
+        resume_checkpoint=resume_path
     )
 
     results = trainer.fit()

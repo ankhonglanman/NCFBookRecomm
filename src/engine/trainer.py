@@ -35,7 +35,8 @@ class Trainer:
         config: Dict[str, Any],
         logger: Any,
         test_evaluator: Optional[Evaluator] = None,
-        metric_tracker: Optional[MetricTracker] = None
+        metric_tracker: Optional[MetricTracker] = None,
+        resume_checkpoint: Optional[str] = None
     ):
         self.model = model
         self.dataset = dataset
@@ -44,6 +45,7 @@ class Trainer:
         self.config = config
         self.logger = logger
         self.metric_tracker = metric_tracker
+        self.resume_checkpoint = resume_checkpoint
 
         self.train_cfg = config.get("train", {})
         self.batch_size = self.train_cfg.get("batch_size", 256)
@@ -65,6 +67,33 @@ class Trainer:
         self.optimizer = self._build_optimizer()
 
         os.makedirs(self.save_dir, exist_ok=True)
+
+        self.initial_best_score = -1.0
+        if self.resume_checkpoint:
+            self._load_resume_checkpoint()
+
+    def _load_resume_checkpoint(self) -> None:
+        if not os.path.exists(self.resume_checkpoint):
+            self.logger.warning(f"Resume checkpoint not found at {self.resume_checkpoint}. Training from scratch.")
+            return
+
+        self.logger.info(f"Resuming training from checkpoint: {self.resume_checkpoint}")
+        ckpt = torch.load(self.resume_checkpoint, map_location=self.device)
+        self.model.load_state_dict(ckpt["model_state_dict"])
+
+        if "optimizer_state_dict" in ckpt:
+            try:
+                self.optimizer.load_state_dict(ckpt["optimizer_state_dict"])
+                for param_group in self.optimizer.param_groups:
+                    param_group["lr"] = self.lr
+                self.logger.info(f"Loaded optimizer state with fine-tuning learning rate: {self.lr}")
+            except Exception as e:
+                self.logger.warning(f"Could not load optimizer state ({e}). Fresh optimizer will be used.")
+
+        prev_metrics = ckpt.get("val_metrics", ckpt.get("metrics", {}))
+        self.initial_best_score = prev_metrics.get(self.monitor_metric, -1.0)
+        prev_epoch = ckpt.get("epoch", 0)
+        self.logger.info(f"Loaded checkpoint from previous Epoch {prev_epoch}. Baseline {self.monitor_metric.upper()}: {self.initial_best_score:.4f}")
 
     def _build_optimizer(self) -> torch.optim.Optimizer:
         opt_type = self.train_cfg.get("optimizer", "adam").lower()
@@ -115,7 +144,7 @@ class Trainer:
         self.logger.info(f"Starting training on device: {self.device}")
         self.logger.info(f"Model: {self.model.__class__.__name__} | Epochs: {self.num_epochs} | Batch size: {self.batch_size}")
 
-        best_metric_val = -1.0
+        best_metric_val = getattr(self, "initial_best_score", -1.0)
         best_epoch = -1
         patience_counter = 0
 

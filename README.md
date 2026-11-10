@@ -162,6 +162,11 @@ python train.py --config configs/config.yaml --model neumf \
     --pretrained_mlp checkpoints/mlp_best.pt
 ```
 
+To resume or fine-tune from an existing best checkpoint (with learning rate decay):
+```bash
+python train.py --resume checkpoints/best_model.pt --epochs 10 --lr 0.0002
+```
+
 ### Step 4: Top-K Recommendation Inference
 Generate personalized Top-10 book recommendations for any User ID:
 ```bash
